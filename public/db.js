@@ -5,7 +5,7 @@ const indexedDB =
   window.msIndexedDB ||
   window.shimIndexedDB;
 
-let db;
+let db, offlineCB;
 const request = indexedDB.open("budget", 1);
 
 request.onupgradeneeded = ({ target }) => {
@@ -19,10 +19,18 @@ request.onsuccess = ({ target }) => {
   // check if app is online before reading from db
   if (navigator.onLine) {
     checkDatabase();
+  } else {
+    const transaction = db.transaction(["pending"], "readwrite");
+    const store = transaction.objectStore("pending");
+    const getAll = store.getAll();
+
+    getAll.onsuccess = function () {
+      if (getAll.result.length > 0) offlineCB(getAll.result);
+    }
   }
 };
 
-request.onerror = function(event) {
+request.onerror = function (event) {
   console.log("Woops! " + event.target.errorCode);
 };
 
@@ -33,12 +41,16 @@ function saveRecord(record) {
   store.add(record);
 }
 
+function checkOffline(cb) {
+  offlineCB = cb;
+}
+
 function checkDatabase() {
   const transaction = db.transaction(["pending"], "readwrite");
   const store = transaction.objectStore("pending");
   const getAll = store.getAll();
 
-  getAll.onsuccess = function() {
+  getAll.onsuccess = function () {
     if (getAll.result.length > 0) {
       fetch("/api/transaction/bulk", {
         method: "POST",
@@ -48,15 +60,16 @@ function checkDatabase() {
           "Content-Type": "application/json"
         }
       })
-      .then(response => {        
-        return response.json();
-      })
-      .then(() => {
-        // delete records if successful
-        const transaction = db.transaction(["pending"], "readwrite");
-        const store = transaction.objectStore("pending");
-        store.clear();
-      });
+        .then(response => {
+          return response.json();
+        })
+        .then(() => {
+          // delete records if successful
+          const transaction = db.transaction(["pending"], "readwrite");
+          const store = transaction.objectStore("pending");
+          store.clear();
+        })
+        .catch(err => console.log(err));
     }
   };
 }
