@@ -34,6 +34,8 @@ To use my deployed site, click the link above. Either install it or use it in th
 
 To run the server yourself, install, then run `npm start`.
 
+![demo gif](assets/demo.gif)
+
 
 
 ## Contributing
